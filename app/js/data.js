@@ -433,11 +433,79 @@
     { id: 'ra', nom: "Robinet d'arrosage DN ½", dwv: null, sup: 'ra_1_2' },
   ];
 
+
+  // ---------------------------------------------------------------------------
+  // MODULE E — CCQ chapitre I – Bâtiment, et CNB 2020 (modifié), division B
+  // (PDF « CCQ Chapitre I.pdf », 1659 p.). Vérifié contre l'image des pages.
+  // ---------------------------------------------------------------------------
+  const EDITION_CH1 = {
+    titre: 'Code de construction du Québec, chapitre I – Bâtiment, et Code national du bâtiment – Canada 2020 (modifié)',
+    court: 'CCQ ch. I / CNB 2020 (modifié Québec)',
+  };
+
+  // Tableau 3.1.17.1. — Nombre de personnes : surface par occupant, en m² (p. 3-49 et 3-50).
+  // null : valeur renvoyée à une note (sièges fixes, piscines, logements).
+  const T_3_1_17_1 = [
+    { groupe: 'Établissements de réunion', id: 'r_sieges_fixes', nom: 'Locaux à sièges fixes', m2: null, note: 'Note (1) : selon le nombre de sièges (3.1.17.1. 1)a)).' },
+    { groupe: 'Établissements de réunion', id: 'r_sieges_amovibles', nom: 'Locaux à sièges amovibles', m2: 0.75 },
+    { groupe: 'Établissements de réunion', id: 'r_scenes', nom: 'Scènes', m2: 0.75 },
+    { groupe: 'Établissements de réunion', id: 'r_tables', nom: 'Locaux avec tables et sièges amovibles', m2: 0.95 },
+    { groupe: 'Établissements de réunion', id: 'r_sans_sieges', nom: 'Locaux de réunion sans sièges', m2: 0.40 },
+    { groupe: 'Établissements de réunion', id: 'r_stades', nom: 'Stades et tribunes', m2: 0.60 },
+    { groupe: 'Établissements de réunion', id: 'r_quilles', nom: 'Salles de quilles et de billard', m2: 9.30 },
+    { groupe: 'Établissements de réunion', id: 'r_classes', nom: 'Salles de classe', m2: 1.85 },
+    { groupe: 'Établissements de réunion', id: 'r_ateliers', nom: 'Ateliers et salles de formation professionnelle', m2: 9.30 },
+    { groupe: 'Établissements de réunion', id: 'r_lecture', nom: "Salles de lecture, d'étude ou de repos", m2: 1.85 },
+    { groupe: 'Établissements de réunion', id: 'r_manger', nom: 'Salles à manger, bars et cafétérias', m2: 1.20 },
+    { groupe: 'Établissements de réunion', id: 'r_labos', nom: 'Laboratoires scolaires', m2: 4.60 },
+    { groupe: 'Établissements de réunion', id: 'r_arcades', nom: 'Arcades', m2: 1.85 },
+    { groupe: 'Établissements de réunion', id: 'r_biblio', nom: 'Bibliothèques, musées et patinoires', m2: 3.00 },
+    { groupe: 'Établissements de réunion', id: 'r_gymnases', nom: 'Gymnases et salles de culture physique', m2: 9.30 },
+    { groupe: 'Établissements de réunion', id: 'r_piscines', nom: 'Piscines', m2: null, note: 'Note (2) : 1,40 m² de plan d’eau par personne (profondeur ≤ 1,40 m) et 2,20 m² ailleurs.' },
+    { groupe: 'Établissements de réunion', id: 'r_danse', nom: 'Pistes de danse', m2: 0.40 },
+    { groupe: 'Établissements de réunion', id: 'r_exposition', nom: "Salles d'exposition et centres d'interprétation", m2: 3.00 },
+    { groupe: 'Établissements de soins, de traitement ou de détention', id: 's_logements', nom: 'Logements', m2: null, note: 'Note (3) : 2 personnes par pièce où l’on dort (3.1.17.1. 1)b)).' },
+    { groupe: 'Établissements de soins, de traitement ou de détention', id: 's_soins', nom: "Locaux où sont administrés les soins ou les traitements et pièces où l'on dort", m2: 10.00 },
+    { groupe: 'Établissements de soins, de traitement ou de détention', id: 's_detention', nom: 'Locaux de détention', m2: 11.60 },
+    { groupe: 'Habitations', id: 'h_logements', nom: 'Logements', m2: null, note: 'Note (3) : 2 personnes par pièce où l’on dort (3.1.17.1. 1)b)).' },
+    { groupe: 'Habitations', id: 'h_dortoirs', nom: 'Dortoirs', m2: 4.60 },
+    { groupe: "Établissements d'affaires", id: 'a_services', nom: 'Boutiques de services personnels', m2: 4.60 },
+    { groupe: "Établissements d'affaires", id: 'a_bureaux', nom: 'Bureaux', m2: 9.30 },
+    { groupe: 'Établissements commerciaux', id: 'c_rdc', nom: 'Sous-sols et premiers étages', m2: 3.70 },
+    { groupe: 'Établissements commerciaux', id: 'c_2e', nom: 'Deuxièmes étages avec entrée principale sur une allée piétonnière ou une aire de stationnement', m2: 3.70 },
+    { groupe: 'Établissements commerciaux', id: 'c_autres', nom: 'Autres étages', m2: 5.60 },
+    { groupe: 'Établissements industriels', id: 'i_fabrication', nom: 'Ateliers de fabrication et de transformation', m2: 4.60 },
+    { groupe: 'Établissements industriels', id: 'i_garages', nom: 'Garages de stationnement', m2: 46.00 },
+    { groupe: 'Établissements industriels', id: 'i_entrepots', nom: 'Dépôts de marchandises (entrepôts)', m2: 28.00 },
+    { groupe: 'Établissements industriels', id: 'i_hangars', nom: "Hangars d'aéronefs", m2: 46.00 },
+    { groupe: 'Autres', id: 'x_nettoyage', nom: 'Locaux de nettoyage et de réparation', m2: 4.60 },
+    { groupe: 'Autres', id: 'x_cuisines', nom: 'Cuisines', m2: 9.30 },
+    { groupe: 'Autres', id: 'x_stockage', nom: 'Locaux de stockage', m2: 46.00 },
+    { groupe: 'Autres', id: 'x_corridors', nom: 'Corridors communs destinés à des usages et à la circulation des personnes', m2: 3.70, note: 'Note (4) : voir la note A-3.3.' },
+  ];
+
+  // Tableau 3.7.2.2.-A — Établissements de réunion (p. 3-192). [max personnes de chaque sexe, hommes, femmes]
+  const T_3_7_2_2_A = [
+    [25, 1, 1], [50, 1, 2], [75, 2, 3], [100, 2, 4], [125, 3, 5], [150, 3, 6],
+    [175, 4, 7], [200, 4, 8], [250, 5, 9], [300, 5, 10], [350, 6, 11], [400, 6, 12],
+  ];
+  // > 400 : hommes 7 + 1 par groupe additionnel de 200 ; femmes 13 + 1 par groupe additionnel de 100.
+  const T_3_7_2_2_A_SUP = { h: { base: 7, groupe: 200 }, f: { base: 13, groupe: 100 }, seuil: 400 };
+
+  // Tableau 3.7.2.2.-B — Établissements d'affaires (p. 3-192). [max personnes de chaque sexe, toilettes]
+  const T_3_7_2_2_B = [[25, 1], [50, 2]];
+  const T_3_7_2_2_B_SUP = { base: 3, groupe: 50, seuil: 50 };
+
+  // Tableau 3.7.2.2.-C — Établissements industriels (p. 3-193).
+  const T_3_7_2_2_C = [[10, 1], [25, 2], [50, 3], [75, 4], [100, 5]];
+  const T_3_7_2_2_C_SUP = { base: 6, groupe: 30, seuil: 100 };
+
   const DATA = {
     EDITION, NL, NP, DN, T_2_4_9_3, FE_PAR_LS, T_2_4_10_6_A, T_2_4_10_6_B, PENTES_C, T_2_4_10_6_C,
     T_2_5_7_1, T_2_5_8_1_A, T_2_5_8_1_B, T_2_5_8_3_DN, T_2_5_8_3, T_2_5_8_4_DN, T_2_5_8_4,
     T_2_6_3_2_A, T_2_6_3_2_D, T_2_6_3_4_V, T_2_6_3_4, T_A_F_V, T_A_F, T_A_A_L, T_A_A, A_2_6_3_1,
     EXIGENCES, PRESETS,
+    EDITION_CH1, T_3_1_17_1, T_3_7_2_2_A, T_3_7_2_2_A_SUP, T_3_7_2_2_B, T_3_7_2_2_B_SUP, T_3_7_2_2_C, T_3_7_2_2_C_SUP,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = DATA;

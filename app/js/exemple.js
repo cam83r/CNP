@@ -60,7 +60,7 @@
         { id: 'A2', nom: 'Distribution RDC', partie: 'distribution', locaux: ['L1', 'L2', 'L3', 'L4', 'L5'], amont: [] },
         { id: 'A3', nom: 'Colonne montante É2', partie: 'distribution', locaux: ['L6', 'L7', 'L8'], amont: [] },
       ],
-      minimaux: { occupation: 'Bureaux (groupe D)', hommes: 25, femmes: 25, besoins: [] },
+      minimaux: { usage: 'affaires', populationMode: 'zones', zones: [{ id: 'z1', usageId: 'a_bureaux', surface: 900 }, { id: 'z2', usageId: 'a_bureaux', surface: 900 }], urinoirs: 2, besoins: [] },
     };
   }
 

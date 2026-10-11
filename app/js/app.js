@@ -15,7 +15,7 @@
   function normalize(p) {
     p.params = Object.assign({ methodeAlim: 'F', vitesse: 2.4 }, p.params || {});
     ['etages', 'locaux', 'reseauxEvac', 'ventilations', 'reseauxAlim'].forEach(k => { p[k] = p[k] || []; });
-    p.minimaux = p.minimaux || { occupation: '', hommes: 0, femmes: 0, besoins: [] };
+    p.minimaux = Object.assign({ usage: 'affaires', populationMode: 'zones', zones: [], besoins: [] }, p.minimaux || {});
     return p;
   }
   let state = normalize(load() || window.CNP_EXEMPLE());
@@ -83,6 +83,16 @@
     '2.6.3.4. 4)': 'Entre le branchement/compteur et le premier tuyau de distribution du chauffe-eau : DN ≥ ¾.',
     '2.6.3.3. 1)': 'Réducteur de pression requis si la pression statique peut dépasser 550 kPa.',
     '2.6.3.5. 1)': 'Vitesse maximale selon le fabricant, sans jamais dépasser 3,0 m/s.',
+    'Tableau 3.1.17.1.': 'CNB (ch. I) — Nombre de personnes : surface par occupant selon l’utilisation de l’aire de plancher.',
+    '3.1.17.1.': 'CNB (ch. I) — Nombre de personnes selon les sièges, les chambres ou le tableau 3.1.17.1.',
+    '3.7.2.2. 1)': 'CNB (ch. I) — Personnes réparties également entre les deux sexes, sauf proportion connue.',
+    '3.7.2.2. 2)': 'CNB (ch. I) — Une seule toilette pour les deux sexes dans les petits cas (≤ 10 personnes, groupe E ≤ 250 m², cours/restaurant ≤ 25, garderie ≤ 15).',
+    '3.7.2.2. 3)': 'CNB (ch. I) — Jusqu’aux 2/3 des toilettes pour hommes remplaçables par des urinoirs ; si 2 toilettes exigées, 1 urinoir.',
+    'Tableau 3.7.2.2.-A': 'CNB (ch. I) — Toilettes pour les établissements de réunion.',
+    'Tableau 3.7.2.2.-B': 'CNB (ch. I) — Toilettes pour les établissements d’affaires.',
+    'Tableau 3.7.2.2.-C': 'CNB (ch. I) — Toilettes pour les établissements industriels.',
+    '3.7.2.3. 1)': 'CNB (ch. I) — 1 lavabo par pièce de 1 ou 2 toilettes/urinoirs, +1 par groupe de 2 supplémentaires.',
+    '3.7.2.6. 1)a)': 'CNB (ch. I) — Avaloir de sol dans une pièce de plus de 2 toilettes ou urinoirs.',
   };
   function ref(r) { return h('span', { class: 'ref', tabindex: '0', 'data-tip': REF_TIPS[r] || `Voir ${r} du CNP 2020 (modifié Québec).` }, r); }
   const NIV = { erreur: 'Erreur', avert: 'Attention', info: 'Info', ok: 'OK' };
@@ -577,41 +587,96 @@
   // ---------------------------------------------------------------------------
   // Module E — appareils minimaux
   // ---------------------------------------------------------------------------
+  const POP_MODES = [{ v: 'zones', t: 'Selon les surfaces (tableau 3.1.17.1.)' }, { v: 'total', t: 'Nombre total de personnes' }, { v: 'sexes', t: 'Hommes et femmes connus' }];
   function viewMin() {
     const m = state.minimaux;
-    m.besoins = m.besoins || [];
+    m.besoins = m.besoins || []; m.zones = m.zones || [];
+    const r = E.calcMinimaux(m);
+    const zr = E.personnesZones(m.zones);
+    const set = (k, v) => update(s => { s.minimaux[k] = v; });
+    const zoneOpts = [...new Set(D.T_3_1_17_1.map(x => x.groupe))].map(g => ({ group: g, options: D.T_3_1_17_1.filter(x => x.groupe === g).map(x => ({ v: x.id, t: `${x.nom}${x.m2 ? ` — ${fmt(x.m2)} m²/pers.` : ''}` })) }));
+    const presetOpts = filt => D.PRESETS.filter(filt).map(p => ({ v: p.id, t: p.nom }));
+    const maxUr = r.wcH + r.urH === 2 ? 1 : Math.floor((r.wcH + r.urH) * 2 / 3);
+    const rows = [];
+    if (r.wcU) rows.push([m.usage === 'logements' ? 'Logements (1 par logement)' : 'Salle universelle (deux sexes)', r.wcU, 0, r.lavU || 0, false]);
+    if (!r.wcU || m.usage !== 'logements') {
+      if (r.wcH + r.urH > 0) rows.push(['Hommes', r.wcH, r.urH, r.lavH, r.asH]);
+      if (r.wcF > 0) rows.push(['Femmes', r.wcF, 0, r.lavF, r.asF]);
+    }
     return h('div', { class: 'stack' },
       h('div', { class: 'section-head' }, h('div', null, h('h2', null, 'Module E — Appareils sanitaires minimaux'),
-        h('p', null, 'Nombre minimal de W.-C., urinoirs et lavabos selon l’usage et le nombre de personnes.'))),
-      h('div', { class: 'banner warn' }, h('strong', null, 'Table non disponible — à confirmer. '),
-        'Le nombre minimal d’appareils sanitaires ne fait pas partie du chapitre III – Plomberie : il relève de la section 3.7. de la division B du CNB, adoptée par le Code de construction du Québec, chapitre I – Bâtiment. Le PDF fourni ne contient pas cette section (il n’y fait référence qu’à l’article 3.7.2.5.). Aucune valeur n’est inventée : saisir ci-dessous les quantités exigées, ou fournir la section 3.7. pour automatiser ce module.'),
-      h('div', { class: 'card' }, h('h3', null, 'Occupation'),
-        h('div', { class: 'fields', style: 'margin-top:10px' },
-          field('Type d’occupation / usage', txt(m.occupation, v => update(s => { s.minimaux.occupation = v; }))),
-          field('Hommes', num(m.hommes, v => update(s => { s.minimaux.hommes = v; }), { min: 0, step: 1 })),
-          field('Femmes', num(m.femmes, v => update(s => { s.minimaux.femmes = v; }), { min: 0, step: 1 })),
-          field('Référence (article / tableau du ch. I)', txt(m.reference, v => update(s => { s.minimaux.reference = v; }), { placeholder: 'ex. : CNB 3.7.2.2., tableau …' })))),
-      h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h3', null, 'Appareils requis (saisie manuelle)'), h('button', { class: 'btn sm', onclick: () => update(s => { s.minimaux.besoins.push({ id: uid('b'), preset: 'wc_res6', qte: 1, groupe: 'Hommes' }); }) }, '+ Ligne')),
+        h('p', null, 'Nombre minimal de toilettes, d’urinoirs et de lavabos selon l’usage et le nombre de personnes — ', D.EDITION_CH1.court, ', division B, sous-section 3.7.2. Le résultat se réinjecte dans le module A.'))),
+      h('div', { class: 'grid cols-2' },
+        h('div', { class: 'card' }, h('h3', null, 'Usage et nombre de personnes'),
+          h('div', { class: 'fields', style: 'margin-top:10px' },
+            field('Usage', sel(m.usage || 'affaires', Object.entries(E.USAGES_E).map(([v, u]) => ({ v, t: u.nom })), v => set('usage', v))),
+            m.usage === 'logements' ? field('Nombre de logements', num(m.nbLogements, v => set('nbLogements', v), { min: 0, step: 1 })) : field('Détermination du nombre de personnes', sel(m.populationMode || 'zones', POP_MODES, v => set('populationMode', v)), '3.1.17.1. et 3.7.2.2. 1)'),
+            m.usage !== 'logements' && m.populationMode === 'total' ? field(m.usage === 'commercial_suite' ? 'Nombre total d’employés' : 'Nombre total de personnes', num(m.personnes, v => set('personnes', v), { min: 0, step: 1 })) : null,
+            m.usage !== 'logements' && m.populationMode === 'sexes' ? field('Hommes', num(m.hommes, v => set('hommes', v), { min: 0, step: 1 })) : null,
+            m.usage !== 'logements' && m.populationMode === 'sexes' ? field('Femmes', num(m.femmes, v => set('femmes', v), { min: 0, step: 1 })) : null,
+            E.USAGES_E[m.usage] && E.USAGES_E[m.usage].excE ? field('Aire du groupe E hors entreposage (m²)', num(m.surfaceE, v => set('surfaceE', v), { min: 0 }), '3.7.2.2. 2)b)') : null),
+          m.usage !== 'logements' && (m.populationMode || 'zones') === 'zones' ? h('div', { style: 'margin-top:12px' },
+            h('div', { class: 'card-head' }, h('h4', null, 'Aires de plancher ', ref('Tableau 3.1.17.1.')), h('button', { class: 'btn sm', onclick: () => update(s => { s.minimaux.zones.push({ id: uid('z'), usageId: 'a_bureaux', surface: 0 }); }) }, '+ Aire')),
+            m.zones.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'compact' },
+              h('thead', null, h('tr', null, h('th', null, 'Utilisation'), h('th', { class: 'num' }, 'Surface (m²) ou personnes'), h('th', { class: 'num' }, 'Personnes'), h('th', null, ''))),
+              h('tbody', null, zr.lignes.map(l => h('tr', null,
+                h('td', null, sel(l.z.usageId, zoneOpts, v => update(() => { l.z.usageId = v; })), l.u && l.u.note ? h('div', { class: 'muted', style: 'font-size:11px;margin-top:2px' }, l.u.note) : null),
+                h('td', { class: 'num' }, l.u && l.u.m2 ? num(l.z.surface, v => update(() => { l.z.surface = v; }), { min: 0, style: 'width:100px', 'aria-label': 'Surface en m²' }) : num(l.z.personnes, v => update(() => { l.z.personnes = v; }), { min: 0, step: 1, style: 'width:100px', 'aria-label': 'Nombre de personnes' })),
+                h('td', { class: 'num', title: l.mode }, fmt(l.p)),
+                h('td', null, h('button', { class: 'icon-btn', title: 'Retirer', onclick: () => update(s => { s.minimaux.zones = s.minimaux.zones.filter(x => x !== l.z); }) }, '×'))))),
+              h('tfoot', null, h('tr', null, h('td', { colspan: 2 }, 'Total'), h('td', { class: 'num' }, fmt(zr.total)), h('td', null))))) : h('p', { class: 'muted' }, 'Ajouter les aires de plancher pour calculer le nombre de personnes.')) : null,
+          r.unisexe ? h('label', { class: 'inline', style: 'margin-top:12px' }, h('input', { type: 'checkbox', checked: m.unisexe !== false, onchange: e => set('unisexe', e.target.checked) }), 'Prévoir une seule toilette pour les deux sexes ', ref('3.7.2.2. 2)')) : null,
+          h('div', { class: 'fields', style: 'margin-top:12px' },
+            !r.unisexeApplique && r.wcH + r.urH > 0 && maxUr > 0 ? field(`Urinoirs remplaçant des toilettes (max. ${maxUr})`, num(m.urinoirs, v => set('urinoirs', v), { min: 0, max: maxUr, step: 1 }), '3.7.2.2. 3)') : null,
+            field('Toilette (module A)', sel(m.presetWc || 'wc_res6', presetOpts(p => p.dwv && /^toilette/.test(p.dwv)), v => set('presetWc', v))),
+            field('Urinoir (module A)', sel(m.presetUr || 'ur_auto', presetOpts(p => p.dwv && /^urinoir/.test(p.dwv)), v => set('presetUr', v))),
+            field('Lavabo (module A)', sel(m.presetLav || 'lav', presetOpts(p => p.dwv && /^lavabo/.test(p.dwv)), v => set('presetLav', v))))),
+        h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h3', null, 'Appareils exigés'), h('span', { class: 'muted mono' }, m.usage === 'logements' ? '' : `${r.total} personnes · ${r.H} H / ${r.F} F`)),
+          r.manuel ? h('p', { class: 'muted' }, 'Aucun calcul automatique pour cet usage : saisir les appareils dans le tableau ci-dessous.') :
+            h('div', { class: 'table-wrap' }, h('table', { class: 'compact' },
+              h('thead', null, h('tr', null, h('th', null, 'Salle de toilettes'), h('th', { class: 'num' }, 'Toilettes'), h('th', { class: 'num' }, 'Urinoirs'), h('th', { class: 'num' }, 'Lavabos'), h('th', null, 'Avaloir de sol'))),
+              h('tbody', null, rows.map(x => h('tr', null, h('td', null, x[0]), h('td', { class: 'num' }, x[1]), h('td', { class: 'num' }, x[2]), h('td', { class: 'num' }, x[3]), h('td', null, x[4] ? 'Exigé' : '—')))))),
+          h('ul', { class: 'constraints', style: 'margin-top:10px' }, r.det.map(d => h('li', null, h('span', { class: 'why', style: 'color:var(--text)' }, d.raison), ref(d.ref)))),
+          alertList(r.alertes),
+          h('h4', { style: 'margin-top:12px' }, 'À vérifier aussi (accès sans obstacles)'),
+          h('ul', { class: 'constraints' },
+            rule('3.8.2.8. 4)', 'Au moins une toilette sans obstacles à l’étage d’entrée, sauf parcours sans obstacles vers des toilettes sans obstacles ailleurs.'),
+            rule('3.8.2.8. 1)', 'Étage où un parcours sans obstacles est exigé : au moins une salle de toilettes universelle (sous-section 3.8.3.).'),
+            rule('3.8.2.8. 2)', 'Plus de 2 toilettes, ou plus d’une toilette et d’un urinoir, dans une salle : au moins une cabine sans obstacles.'),
+            rule('3.7.2.2. 15)', 'Toilettes dans chaque suite, ou à au plus 1 étage et 90 m de parcours de la porte de la suite.')))),
+      h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h3', null, 'Appareils additionnels (saisie manuelle)'), h('button', { class: 'btn sm', onclick: () => update(s => { s.minimaux.besoins.push({ id: uid('b'), preset: 'wc_res6', qte: 1, groupe: 'Autre' }); }) }, '+ Ligne')),
+        h('p', { class: 'muted', style: 'font-size:12.5px' }, 'Pour les établissements de traitement ou de détention (3.7.2.2. 7)) ou pour des appareils au-delà du minimum.'),
         m.besoins.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'compact' },
-          h('thead', null, h('tr', null, h('th', null, 'Groupe'), h('th', null, 'Appareil'), h('th', { class: 'num' }, 'Qté requise'), h('th', null, ''))),
+          h('thead', null, h('tr', null, h('th', null, 'Salle'), h('th', null, 'Appareil'), h('th', { class: 'num' }, 'Qté'), h('th', null, ''))),
           h('tbody', null, m.besoins.map(b => h('tr', null,
-            h('td', null, txt(b.groupe, v => update(() => { b.groupe = v; }), { style: 'width:120px' })),
+            h('td', null, txt(b.groupe, v => update(() => { b.groupe = v; }), { style: 'width:140px' })),
             h('td', null, sel(b.preset, D.PRESETS.map(p => ({ v: p.id, t: p.nom })), v => update(() => { b.preset = v; }))),
             h('td', { class: 'num' }, num(b.qte, v => update(() => { b.qte = Math.max(0, v || 0); }), { style: 'width:70px', min: 0, step: 1 })),
-            h('td', null, h('button', { class: 'icon-btn', onclick: () => update(s => { s.minimaux.besoins = s.minimaux.besoins.filter(x => x !== b); }) }, '×'))))))) : h('p', { class: 'muted' }, 'Aucune ligne.'),
-        h('div', { class: 'row', style: 'margin-top:10px' },
-          h('span', { class: 'muted' }, 'Réinjecter dans le module A :'),
-          state.etages.length ? sel(ui.minEtage || state.etages[0].id, state.etages.map(e => ({ v: e.id, t: e.nom })), v => { ui.minEtage = v; }) : null,
-          h('button', { class: 'btn primary', disabled: !m.besoins.length || !state.etages.length, onclick: () => update(s => {
-            const groupes = [...new Set(s.minimaux.besoins.map(b => b.groupe || 'Groupe'))];
-            groupes.forEach(g => {
-              const apps = s.minimaux.besoins.filter(b => (b.groupe || 'Groupe') === g && b.qte > 0).map(b => { const p = E.PRESET[b.preset]; return { id: uid('a'), preset: b.preset, dwv: p.dwv, sup: p.sup, qte: b.qte }; });
-              if (apps.length) s.locaux.push({ id: uid('L'), nom: `${g} (minimaux)`, etageId: ui.minEtage || s.etages[0].id, usage: 'pub', appareils: apps });
-            });
-            tab = 'locaux';
-          }) }, 'Créer les locaux'))));
+            h('td', null, h('button', { class: 'icon-btn', onclick: () => update(s => { s.minimaux.besoins = s.minimaux.besoins.filter(x => x !== b); }) }, '×'))))))) : null),
+      h('div', { class: 'card' }, h('h3', null, 'Réinjecter dans le module A'),
+        h('div', { class: 'row', style: 'margin-top:8px' },
+          h('span', { class: 'muted' }, 'Créer les salles de toilettes à l’étage :'),
+          state.etages.length ? sel(ui.minEtage || state.etages[0].id, state.etages.map(e => ({ v: e.id, t: e.nom })), v => { ui.minEtage = v; }) : h('span', { class: 'muted' }, 'aucun étage — en créer un dans « Projet et paramètres »'),
+          h('button', { class: 'btn primary', disabled: !state.etages.length, onclick: () => update(s => creerLocauxMin(s, r)) }, 'Créer les locaux'))));
   }
-
+  function creerLocauxMin(s, r) {
+    const m = s.minimaux;
+    const P = id => E.PRESET[id];
+    const app = (pid, q) => { const p = P(pid); return { id: uid('a'), preset: pid, dwv: p.dwv, sup: p.sup, qte: q }; };
+    const et = ui.minEtage || s.etages[0].id;
+    const wc = m.presetWc || 'wc_res6', ur = m.presetUr || 'ur_auto', lv = m.presetLav || 'lav';
+    const salles = [];
+    if (!r.manuel) {
+      if (r.wcU && m.usage !== 'logements') salles.push(['WC universel (3.7.2.)', [app(wc, 1), app(lv, r.lavU || 1)]]);
+      if (r.wcH + r.urH > 0) salles.push(['WC Hommes (3.7.2.)', [app(wc, r.wcH), r.urH ? app(ur, r.urH) : null, app(lv, r.lavH), r.asH ? app('as3', 1) : null].filter(Boolean)]);
+      if (r.wcF > 0) salles.push(['WC Femmes (3.7.2.)', [app(wc, r.wcF), app(lv, r.lavF), r.asF ? app('as3', 1) : null].filter(Boolean)]);
+      if (m.usage === 'logements' && r.wcU) salles.push([`Logements — ${r.wcU} toilette(s) (3.7.2.2. 9))`, [app(wc, r.wcU)]]);
+    }
+    const groupes = [...new Set(m.besoins.map(b => b.groupe || 'Autre'))];
+    groupes.forEach(g => { const a = m.besoins.filter(b => (b.groupe || 'Autre') === g && b.qte > 0).map(b => app(b.preset, b.qte)); if (a.length) salles.push([`${g} (manuel)`, a]); });
+    salles.forEach(([nom, apps]) => s.locaux.push({ id: uid('L'), nom, etageId: et, usage: m.usage === 'logements' ? 'priv' : 'pub', appareils: apps }));
+    tab = 'locaux';
+  }
   // ---------------------------------------------------------------------------
   // Tables du code
   // ---------------------------------------------------------------------------
@@ -640,6 +705,10 @@
         tableCard('Tableau A-2.6.3.1. 2)-F — Perte de pression moyenne', ['DN'].concat(D.T_A_F_V.flatMap(v => [`${fmt(v)} m/s : L/s`, 'FA'])), D.T_A_F.map(r => [r.dn, ...r.q.flatMap((q, i) => [fmt(q), fmt(r.fa[i])])])),
         ...D.T_A_A.map(p => tableCard(`Tableau A-2.6.3.1. 2)-A — Petits bâtiments, ${p.plage} (FA max.)`, ['Branch.', 'Distr.'].concat(D.T_A_A_L.map(l => `${l} m`)), p.rows.map(r => [r[0], r[1], ...r[2].map(x => fmt(x))]))),
         tableCard('Tableau 2.6.3.4. — 1 ou 2 logements (FA max.)', ['DN'].concat(D.T_2_6_3_4_V.map(v => `${fmt(v)} m/s`)), D.T_2_6_3_4.map(r => [r.dn, ...r.fa.map(x => fmt(x))])),
+        tableCard('CNB — Tableau 3.1.17.1. Nombre de personnes', ['Utilisation', 'm² par personne'], D.T_3_1_17_1.map(r => [`${r.groupe} — ${r.nom}`, r.m2 ? fmt(r.m2) : (r.note || '—')])),
+        tableCard('CNB — Tableau 3.7.2.2.-A Établissements de réunion', ['Personnes de chaque sexe', 'Hommes', 'Femmes'], D.T_3_7_2_2_A.map((r, i) => [`${i ? D.T_3_7_2_2_A[i - 1][0] + 1 : 1} – ${r[0]}`, r[1], r[2]]).concat([['> 400', '7, + 1 par groupe additionnel de 200', '13, + 1 par groupe additionnel de 100']])),
+        tableCard('CNB — Tableau 3.7.2.2.-B Établissements d’affaires', ['Personnes de chaque sexe', 'Toilettes par sexe'], [['1 – 25', 1], ['26 – 50', 2], ['> 50', '3, + 1 par groupe additionnel de 50']]),
+        tableCard('CNB — Tableau 3.7.2.2.-C Établissements industriels', ['Personnes de chaque sexe', 'Toilettes par sexe'], [['1 – 10', 1], ['11 – 25', 2], ['26 – 50', 3], ['51 – 75', 4], ['76 – 100', 5], ['> 100', '6, + 1 par groupe additionnel de 30']]),
         tableCard('Équivalences métriques du DN', ['DN (po)', 'DN (mm)'], D.DN.map(d => [d.dn, d.mm === null ? 'non donné' : d.mm]))));
   }
   function tableCard(title, head, rows) {

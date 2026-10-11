@@ -48,9 +48,7 @@
    - La note A-2.6.3.1. 2) propose deux méthodes tabulées (tableaux A et F), qui sont implantées.
    - Le débit affiché est **indicatif**. Il est interpolé dans la colonne de vitesse choisie du tableau F.
 7. **Pression minimale par appareil.** Le code ne fixe pas de valeur. Il renvoie aux spécifications du fabricant (2.6.3.1. 1)). Les 105 kPa du jeu d'exemple viennent de la figure A-2.6.3.1. 2)-B et sont une hypothèse.
-8. **Appareils minimaux (section 3.7.).**
-   - Ce contenu n'est **pas dans le chapitre III**. Il relève de la division B du CNB, soit le CCQ chapitre I – Bâtiment.
-   - Le PDF fourni ne le contient pas. Le module E fonctionne donc en saisie manuelle, signalée « à confirmer ».
+8. **Appareils minimaux (section 3.7.).** Ce contenu n'est **pas dans le chapitre III** : il relève de la division B du CNB, soit le CCQ chapitre I – Bâtiment. Il a été extrait du second PDF (voir plus bas).
 9. **Incohérence interne du code.**
    - L'exemple 2 de la note A-2.4.10. compte la fontaine à 1 FE.
    - Le tableau 2.4.9.3. lui attribue ½ FE.
@@ -62,3 +60,31 @@
 - **Trames de vitesse du tableau A-2.6.3.1. 2)-A.** La zone 3,0, 2,4 ou 1,5 m/s de chaque cellule est indiquée par une trame grise. Elle n'est pas reproduite : consulter le tableau officiel.
 - **DN ⅝ et 15.** Ces DN figurent dans les tableaux mais pas dans le tableau des équivalences métriques. Leur équivalent en mm est affiché « n.d. ».
 - **Chéneaux, descentes et collecteurs pluviaux** (2.4.10.9. à 2.4.10.11.). Ces tableaux sont prévus pour la phase 2 (pluvial).
+
+## Module E — CCQ chapitre I – Bâtiment
+
+**Source :** *Code de construction du Québec, chapitre I – Bâtiment, et Code national du bâtiment – Canada 2020 (modifié)*, PDF de 1659 pages (« CCQ Chapitre I.pdf »), division B.
+
+| Donnée | Référence | Page | Vérification |
+|---|---|---|---|
+| Nombre de personnes (surface par occupant) | Tableau 3.1.17.1. | 3-49, 3-50 | image ✔ |
+| Méthode de détermination (sièges fixes, 2 personnes par chambre, tableau) | 3.1.17.1. 1) | 3-48 | texte ✔ |
+| Répartition égale entre les sexes ; toilette unique ; urinoirs | 3.7.2.2. 1) à 3) | 3-191, 3-192 | image ✔ |
+| Établissements de réunion | Tableau 3.7.2.2.-A | 3-192 | image ✔ |
+| Écoles primaires et garderies ; culte ; soins et habitations ; logements | 3.7.2.2. 5), 6), 8), 9) | 3-192 | image ✔ |
+| Établissements d'affaires | Tableau 3.7.2.2.-B | 3-192 | image ✔ |
+| Établissements commerciaux ; suites commerciales ≤ 500 m² | 3.7.2.2. 11) et 14) | 3-193 | image ✔ |
+| Établissements industriels | Tableau 3.7.2.2.-C ; 3.7.2.1. 2) | 3-193 | image ✔ |
+| Lavabos | 3.7.2.3. 1) | 3-193 | image ✔ |
+| Avaloir de sol (plus de 2 toilettes ou urinoirs) | 3.7.2.6. 1)a) | 3-194 | texte ✔ |
+| Accès sans obstacles (rappels seulement) | 3.8.2.8. | — | texte ✔ |
+
+### Interprétations à confirmer
+
+Le code ne précise pas l'arrondi. L'application applique les règles suivantes et l'indique dans l'interface :
+
+- Le nombre de personnes calculé (surface ÷ m² par personne) est arrondi à l'unité supérieure.
+- Avec une répartition égale, la moitié est aussi arrondie à l'unité supérieure. Exemple : 194 → 97 de chaque sexe.
+- « 1 par groupe additionnel de N » : un groupe entamé compte. Exemple : 51 personnes dans un établissement d'affaires → 4 toilettes.
+- « 1 lavabo par groupe de 2 toilettes ou urinoirs supplémentaires » : un groupe entamé compte. Le calcul suppose une salle de toilettes par sexe.
+- Toilettes pour hommes remplacées par des urinoirs : au plus ⌊2/3⌋ du nombre exigé, ou 1 si 2 toilettes sont exigées.

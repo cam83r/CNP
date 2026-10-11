@@ -165,3 +165,43 @@ test('V-EX jeu d’exemple : résultats attendus documentés', () => {
   const ve = Object.fromEntries(R.vent.map(r => [r.v.id, r]));
   assert.equal(ve.V1.dn, '3'); assert.equal(ve.V2.dn, '1½'); assert.equal(ve.V3.dn, '1½');
 });
+
+// ---------------------------------------------------------------------------
+// V-E — appareils sanitaires minimaux (CNB 2020 modifié Québec, 3.7.2.)
+// ---------------------------------------------------------------------------
+test('V-E1 établissements d’affaires (tableau 3.7.2.2.-B) et nombre de personnes (3.1.17.1.)', () => {
+  const r = E.calcMinimaux({ usage: 'affaires', zones: [{ usageId: 'a_bureaux', surface: 465 }] });
+  assert.equal(r.total, 50); assert.equal(r.H, 25); assert.equal(r.wcH, 1); assert.equal(r.wcF, 1);
+  const r2 = E.calcMinimaux({ usage: 'affaires', populationMode: 'total', personnes: 160 });
+  assert.equal(r2.H, 80); assert.equal(r2.wcH, 4); assert.equal(r2.wcF, 4); // 3 + 1 groupe entamé de 50
+  assert.equal(r2.lavF, 2); assert.equal(r2.asF, true);
+  const r3 = E.calcMinimaux({ usage: 'affaires', populationMode: 'total', personnes: 101 });
+  assert.equal(r3.H, 51); assert.equal(r3.wcH, 4);
+});
+
+test('V-E2 établissements de réunion (tableau 3.7.2.2.-A) et urinoirs (3.7.2.2. 3))', () => {
+  const r = E.calcMinimaux({ usage: 'reunion', populationMode: 'sexes', hommes: 500, femmes: 500, urinoirs: 9 });
+  assert.equal(r.wcH + r.urH, 8); // 7 + 1 groupe de 200
+  assert.equal(r.urH, 5); // max 2/3 de 8 → 5
+  assert.equal(r.wcF, 14); // 13 + 1 groupe de 100
+  const r2 = E.calcMinimaux({ usage: 'reunion', populationMode: 'sexes', hommes: 60, femmes: 60, urinoirs: 1 });
+  assert.equal(r2.wcH, 1); assert.equal(r2.urH, 1); assert.equal(r2.wcF, 3); // 2 exigées → 1 urinoir
+});
+
+test('V-E3 industriels (tableau 3.7.2.2.-C), commerciaux (11)) et exception 3.7.2.2. 2)', () => {
+  assert.equal(E.calcMinimaux({ usage: 'industriel', populationMode: 'sexes', hommes: 131, femmes: 100 }).wcH, 8);
+  assert.equal(E.calcMinimaux({ usage: 'industriel', populationMode: 'sexes', hommes: 131, femmes: 100 }).wcF, 5);
+  const c = E.calcMinimaux({ usage: 'commercial', populationMode: 'sexes', hommes: 301, femmes: 151 });
+  assert.equal(c.wcH, 2); assert.equal(c.wcF, 2);
+  const u = E.calcMinimaux({ usage: 'restaurant', populationMode: 'total', personnes: 25 });
+  assert.equal(u.unisexe, true); assert.equal(u.wcU, 1);
+  assert.equal(E.calcMinimaux({ usage: 'restaurant', populationMode: 'total', personnes: 26 }).unisexe, false);
+  assert.equal(E.calcMinimaux({ usage: 'commercial', populationMode: 'total', personnes: 80, surfaceE: 240 }).unisexe, true);
+});
+
+test('V-E4 jeu d’exemple : bureaux 2 × 900 m²', () => {
+  const r = E.calcMinimaux(exemple().minimaux);
+  assert.equal(r.total, 194); // 1800 / 9,3 = 193,5 → 194
+  assert.equal(r.H, 97); assert.equal(r.wcH + r.urH, 4); assert.equal(r.urH, 2); assert.equal(r.wcF, 4);
+  assert.equal(r.lavH, 2); assert.equal(r.lavF, 2);
+});

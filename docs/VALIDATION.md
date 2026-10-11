@@ -127,3 +127,21 @@ Le jeu se trouve dans `app/js/exemple.js`. Tous les appareils sont en usage publ
   1. 450 − 20 = 430 kPa ;
   2. 430 − 50 − 7 × 9,81 − 105 = 206,3 kPa ;
   3. 206,3 / (45 × 1,5) = **3,06 kPa/m** ≥ 2,6 ✔.
+
+## V-E — Appareils sanitaires minimaux (CNB 2020 modifié Québec, 3.7.2.)
+
+| Cas | Calcul | Résultat |
+|---|---|---|
+| Bureaux de 465 m² | 465 / 9,3 = 50 personnes → 25 par sexe (tableau B : 1–25) | 1 toilette par sexe |
+| Affaires, 160 personnes | 80 par sexe → 3 + ⌈30/50⌉ | 4 toilettes par sexe ; 2 lavabos ; avaloir de sol |
+| Affaires, 101 personnes | 51 par sexe → 3 + ⌈1/50⌉ | 4 toilettes par sexe |
+| Réunion, 500 H / 500 F | H : 7 + ⌈100/200⌉ = 8, dont jusqu'à 5 urinoirs ; F : 13 + ⌈100/100⌉ | 3 toilettes + 5 urinoirs (H) ; 14 toilettes (F) |
+| Réunion, 60 H | 2 toilettes exigées → 1 urinoir permis (3.7.2.2. 3)) | 1 toilette + 1 urinoir |
+| Industriel, 131 H / 100 F | H : 6 + ⌈31/30⌉ ; F : tableau C (76–100) | 8 (H), 5 (F) |
+| Commercial, 301 H / 151 F | ⌈301/300⌉, ⌈151/150⌉ | 2 et 2 |
+| Restaurant, 25 personnes | Exception 3.7.2.2. 2)c) | Une seule toilette permise |
+| Restaurant, 26 personnes | — | Exception non applicable |
+| Groupe E, aire de 240 m² | Exception 3.7.2.2. 2)b) | Une seule toilette permise |
+| **Jeu d'exemple** : bureaux 2 × 900 m² | 1800 / 9,3 = 193,5 → 194 personnes → 97 par sexe → 3 + ⌈47/50⌉ = 4 | H : 2 toilettes + 2 urinoirs, 2 lavabos ; F : 4 toilettes, 2 lavabos |
+
+Le bâtiment d'exemple prévoit 4 toilettes et 4 urinoirs pour les hommes et 6 toilettes pour les femmes. Il dépasse donc le minimum.

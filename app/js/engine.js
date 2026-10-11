@@ -461,6 +461,125 @@
     return res;
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Module E — appareils sanitaires minimaux (CCQ ch. I / CNB 2020 modifié, 3.7.2.)
+  // ---------------------------------------------------------------------------
+  const USAGES_E = {
+    reunion: { nom: 'Établissement de réunion (groupe A)', ref: 'Tableau 3.7.2.2.-A', exc10: true },
+    restaurant: { nom: 'Restaurant', ref: 'Tableau 3.7.2.2.-A', exc25: true },
+    cours: { nom: 'Établissement où des cours sont donnés', ref: 'Tableau 3.7.2.2.-A', exc25: true },
+    ecole: { nom: 'École primaire', ref: '3.7.2.2. 5)' },
+    garderie: { nom: 'Garderie', ref: '3.7.2.2. 5)', exc15: true },
+    culte: { nom: 'Établissement de culte ou de pompes funèbres', ref: '3.7.2.2. 6)' },
+    traitement: { nom: 'Établissement de traitement ou de détention', ref: '3.7.2.2. 7)' },
+    soins: { nom: 'Établissement de soins ou habitation (groupe B div. 3, groupe C)', ref: '3.7.2.2. 8)', exc10: true },
+    logements: { nom: 'Logements', ref: '3.7.2.2. 9)' },
+    affaires: { nom: "Établissement d'affaires (groupe D)", ref: 'Tableau 3.7.2.2.-B', exc10: true },
+    commercial: { nom: 'Établissement commercial (groupe E)', ref: '3.7.2.2. 11)', exc10: true, excE: true },
+    commercial_suite: { nom: 'Suite commerciale ≤ 500 m² (selon les employés)', ref: '3.7.2.2. 14)', exc10: true, excE: true },
+    industriel: { nom: 'Établissement industriel (groupe F)', ref: 'Tableau 3.7.2.2.-C', exc10: true },
+  };
+
+  /** « N, plus 1 par groupe additionnel de G au-delà de S » — un groupe entamé compte. */
+  function parGroupe(n, sup) { return sup.base + Math.ceil((n - sup.seuil) / sup.groupe - 1e-9); }
+  function tableauSexe(n, rows, sup) {
+    if (n <= 0) return 0;
+    for (const [max, v] of rows) if (n <= max) return v;
+    return parGroupe(n, sup);
+  }
+
+  /** Nombre de personnes selon le tableau 3.1.17.1. (surface ÷ surface par occupant). */
+  function personnesZones(zones) {
+    let total = 0;
+    const lignes = (zones || []).map(z => {
+      const u = D.T_3_1_17_1.find(x => x.id === z.usageId);
+      let p = 0, mode;
+      if (u && u.m2 && +z.surface > 0) { p = +z.surface / u.m2; mode = `${n(+z.surface)} m² ÷ ${n(u.m2)} m²/pers.`; }
+      else { p = Math.max(0, +z.personnes || 0); mode = u && !u.m2 ? (u.note || 'nombre saisi') : 'nombre saisi'; }
+      total += p;
+      return { z, u, p: round(p, 2), mode };
+    });
+    return { total: round(total, 2), lignes };
+  }
+
+  function calcMinimaux(m) {
+    const u = USAGES_E[m.usage] || USAGES_E.affaires;
+    const det = [], alertes = [];
+    // Population
+    let H, F, total;
+    if (m.populationMode === 'sexes') {
+      H = Math.max(0, Math.ceil(+m.hommes || 0)); F = Math.max(0, Math.ceil(+m.femmes || 0)); total = H + F;
+      det.push({ ref: '3.7.2.2. 1)', raison: `Répartition connue : ${H} hommes, ${F} femmes` });
+    } else {
+      const z = personnesZones(m.zones);
+      const brut = (m.zones || []).length ? z.total : Math.max(0, +m.personnes || 0);
+      total = Math.ceil(brut - 1e-9);
+      H = F = Math.ceil(total / 2 - 1e-9);
+      det.push({ ref: (m.zones || []).length ? 'Tableau 3.1.17.1.' : '3.1.17.1.', raison: `Nombre de personnes : ${n(brut)} → ${total}` });
+      det.push({ ref: '3.7.2.2. 1)', raison: `Réparti également entre les deux sexes : ${total} / 2 → ${H} de chaque sexe` });
+    }
+    let wcH = 0, wcF = 0, manuel = false;
+    if (m.usage === 'reunion' || m.usage === 'restaurant' || m.usage === 'cours') {
+      const t = (k, x) => { if (x <= 0) return 0; for (const r of D.T_3_7_2_2_A) if (x <= r[0]) return r[k]; return parGroupe(x, { ...D.T_3_7_2_2_A_SUP[k === 1 ? 'h' : 'f'], seuil: D.T_3_7_2_2_A_SUP.seuil }); };
+      wcH = t(1, H); wcF = t(2, F);
+    } else if (m.usage === 'ecole' || m.usage === 'garderie') {
+      wcH = Math.ceil(H / 30 - 1e-9); wcF = Math.ceil(F / 25 - 1e-9);
+      det.push({ ref: '3.7.2.2. 5)', raison: '1 toilette par groupe de 30 garçonnets et 1 par groupe de 25 fillettes' });
+    } else if (m.usage === 'culte') {
+      wcH = Math.ceil(H / 150 - 1e-9); wcF = Math.ceil(F / 150 - 1e-9);
+    } else if (m.usage === 'soins') {
+      wcH = Math.ceil(H / 10 - 1e-9); wcF = Math.ceil(F / 10 - 1e-9);
+    } else if (m.usage === 'logements') {
+      const nl = Math.max(0, Math.ceil(+m.nbLogements || 0));
+      det.push({ ref: '3.7.2.2. 9)', raison: `Au moins 1 toilette par logement : ${nl}` });
+      return { usage: u, total, H, F, logements: nl, wcH: 0, wcF: 0, urH: 0, wcU: nl, lavH: 0, lavF: 0, asH: false, asF: false, unisexe: false, manuel: false, det, alertes };
+    } else if (m.usage === 'affaires' || m.usage === 'commercial_suite') {
+      wcH = tableauSexe(H, D.T_3_7_2_2_B, D.T_3_7_2_2_B_SUP); wcF = tableauSexe(F, D.T_3_7_2_2_B, D.T_3_7_2_2_B_SUP);
+      if (m.usage === 'commercial_suite') det.push({ ref: '3.7.2.2. 14)', raison: 'Suite commerciale ≤ 500 m² : tableau 3.7.2.2.-B appliqué au nombre total d’employés (saisi comme population)' });
+    } else if (m.usage === 'commercial') {
+      wcH = Math.ceil(H / 300 - 1e-9); wcF = Math.ceil(F / 150 - 1e-9);
+      det.push({ ref: '3.7.2.2. 11)', raison: '1 toilette par groupe de 300 hommes et 1 par groupe de 150 femmes' });
+    } else if (m.usage === 'industriel') {
+      wcH = tableauSexe(H, D.T_3_7_2_2_C, D.T_3_7_2_2_C_SUP); wcF = tableauSexe(F, D.T_3_7_2_2_C, D.T_3_7_2_2_C_SUP);
+      det.push({ ref: '3.7.2.1. 2)', raison: 'Occupation intermittente ou temporaire : le nombre de personnes peut être fondé sur le seul nombre d’employés' });
+    } else if (m.usage === 'traitement') {
+      manuel = true;
+      alertes.push({ niveau: 'avert', ref: '3.7.2.2. 7)', msg: 'Établissement de traitement ou de détention : le nombre de toilettes est déterminé selon les besoins particuliers de l’établissement (saisie manuelle).' });
+    }
+    if (!manuel) det.push({ ref: u.ref, raison: `Toilettes exigées : ${wcH} pour les hommes, ${wcF} pour les femmes` });
+
+    // Exception 3.7.2.2. 2) — une seule toilette pour les deux sexes
+    let unisexe = false, raisonU = '';
+    if (u.exc10 && total <= 10) { unisexe = true; raisonU = `a) ${total} personnes ≤ 10`; }
+    if (u.excE && m.surfaceE > 0 && +m.surfaceE <= 250) { unisexe = true; raisonU = `b) aire du groupe E (hors entreposage) ${n(+m.surfaceE)} m² ≤ 250 m²`; }
+    if (u.exc25 && total <= 25) { unisexe = true; raisonU = `c) ${total} personnes ≤ 25`; }
+    if (u.exc15 && total <= 15) { unisexe = true; raisonU = `d) ${total} enfants ≤ 15`; }
+    if (unisexe) det.push({ ref: '3.7.2.2. 2)', raison: `Une seule toilette pour les deux sexes est permise : ${raisonU}` });
+    const useU = unisexe && m.unisexe !== false;
+
+    // Urinoirs 3.7.2.2. 3)
+    let urH = 0;
+    if (!useU && wcH > 0) {
+      const maxUr = wcH === 2 ? 1 : Math.floor(wcH * 2 / 3 + 1e-9);
+      if (maxUr > 0) det.push({ ref: '3.7.2.2. 3)', raison: `Jusqu’à ${maxUr} des ${wcH} toilettes pour hommes peuvent être remplacées par des urinoirs` });
+      urH = Math.min(maxUr, Math.max(0, Math.floor(+m.urinoirs || 0)));
+      if (+m.urinoirs > maxUr) alertes.push({ niveau: 'avert', ref: '3.7.2.2. 3)', msg: `Au plus ${maxUr} urinoir(s) peuvent remplacer des toilettes.` });
+    }
+    // Lavabos 3.7.2.3. 1) : 1 pour 1 ou 2 toilettes/urinoirs, +1 par groupe de 2 supplémentaires (un groupe entamé compte)
+    const lav = x => x <= 0 ? 0 : Math.ceil(x / 2 - 1e-9);
+    alertes.push({ niveau: 'info', ref: '3.7.2.', msg: 'Interprétation à confirmer : nombre de personnes et répartition arrondis à l’unité supérieure ; un « groupe additionnel » ou un groupe de 2 appareils entamé est compté (le code ne précise pas l’arrondi).' });
+    const res = { usage: u, total, H, F, unisexe, unisexeApplique: useU, manuel, det, alertes };
+    if (useU) {
+      Object.assign(res, { wcU: 1, wcH: 0, wcF: 0, urH: 0, lavU: 1, lavH: 0, lavF: 0, asH: false, asF: false });
+    } else {
+      Object.assign(res, { wcU: 0, wcH: wcH - urH, urH, wcF, lavH: lav(wcH), lavF: lav(wcF), asH: wcH > 2, asF: wcF > 2 });
+      det.push({ ref: '3.7.2.3. 1)', raison: `Lavabos par salle de toilettes : hommes ${res.lavH}, femmes ${res.lavF} (1 pour 1 ou 2 appareils, +1 par groupe de 2 appareils supplémentaires)` });
+      if (res.asH || res.asF) det.push({ ref: '3.7.2.6. 1)a)', raison: 'Avaloir de sol exigé dans toute pièce comportant plus de 2 toilettes ou urinoirs' });
+    }
+    return res;
+  }
+
   // ---------------------------------------------------------------------------
   // Synthèse projet
   // ---------------------------------------------------------------------------
@@ -478,6 +597,7 @@
     D, RHO_G, dnVal, dnMm, dnLabel, dnMax, dnAtLeast, round, DWV, SUP, PRESET,
     supplyFactors, localTotals, calcDwv, ventColonne, calcVent, sizeStack, sizeBranch, sizeDrain, penteColonneC,
     sizeF, sizeA, size2634, debitIndicatif, pressionBilan, calcSupply, calcProject,
+    USAGES_E, personnesZones, calcMinimaux, parGroupe,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE;
   else root.CNP_ENGINE = ENGINE;
