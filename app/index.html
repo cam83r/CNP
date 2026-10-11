@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calcul de plomberie</title>
+  <meta name="description" content="Prédimensionnement des réseaux de plomberie selon le CCQ chapitre III – Plomberie / CNP 2020 (modifié Québec).">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 3v8a4 4 0 0 0 4 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M15 15h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="5" cy="3" r="1.6" fill="currentColor"/></svg>
+      </span>
+      <div>
+        <h1>Calcul de plomberie <small>prédimensionnement</small></h1>
+        <p id="edition" class="edition"></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button type="button" id="btn-csv" class="btn">Exporter CSV</button>
+      <button type="button" id="btn-pdf" class="btn">Rapport PDF</button>
+      <button type="button" id="btn-theme" class="btn ghost" aria-label="Changer de thème">◐</button>
+    </div>
+  </header>
+  <div class="disclaimer" role="note">
+    <strong>Outil de prédimensionnement</strong> — la conformité finale doit être validée par un professionnel contre le texte officiel du chapitre III.
+  </div>
+  <nav id="tabs" class="tabs" aria-label="Modules"></nav>
+  <main id="main" class="main"></main>
+  <div id="print-root" class="print-root"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/exemple.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
