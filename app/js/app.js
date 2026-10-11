@@ -280,15 +280,47 @@
             h('td', null, txt(et.nom, v => update(() => { et.nom = v; }))),
             h('td', null, num(et.niveau, v => update(() => { et.niveau = v; }), { style: 'width:100px' })),
             h('td', { class: 'num' }, state.locaux.filter(l => l.etageId === et.id).length),
-            h('td', null, h('button', { class: 'icon-btn', title: 'Supprimer', onclick: () => { if (state.locaux.some(l => l.etageId === et.id) && !confirm('Des locaux sont assignés à cet étage. Supprimer quand même ?')) return; update(s => { s.etages = s.etages.filter(x => x !== et); }); } }, '×')))))))),
+            h('td', null, h('button', { class: 'icon-btn', title: 'Supprimer', onclick: () => { const del = () => update(s => { s.etages = s.etages.filter(x => x !== et); }); if (state.locaux.some(l => l.etageId === et.id)) ask(`Des locaux sont assignés à « ${et.nom} ». Supprimer l’étage quand même ?`, del, 'Supprimer'); else del(); } }, '×')))))))),
       h('div', { class: 'card' }, h('h3', null, 'Fichier de projet'),
         h('p', { class: 'muted', style: 'margin-top:6px' }, 'Le projet est enregistré automatiquement dans ce navigateur. Exporter en JSON pour l’archiver ou le partager.'),
         h('div', { class: 'row' },
           h('button', { class: 'btn', onclick: exportJSON }, 'Exporter JSON'),
           h('label', { class: 'btn' }, 'Importer JSON', h('input', { type: 'file', accept: '.json,application/json', class: 'hidden', onchange: importJSON })),
           h('span', { class: 'spacer' }),
-          h('button', { class: 'btn', onclick: () => { if (confirm('Remplacer le projet par le jeu d’exemple ?')) { state = normalize(window.CNP_EXEMPLE()); save(); render(); } } }, 'Charger l’exemple'),
-          h('button', { class: 'btn danger', onclick: () => { if (confirm('Créer un projet vide ? Le projet actuel sera remplacé.')) { state = normalize({ nom: 'Nouveau projet', params: { methodeAlim: 'F', vitesse: 2.4 }, etages: [{ id: 'E1', nom: 'Rez-de-chaussée', niveau: 0 }] }); save(); render(); } } }, 'Nouveau projet'))));
+          h('button', { class: 'btn', onclick: () => ask('Remplacer le projet actuel par le jeu d’exemple ?', () => { state = normalize(window.CNP_EXEMPLE()); save(); render(); }, 'Remplacer') }, 'Charger l’exemple'),
+          h('button', { class: 'btn danger', onclick: () => ask('Créer un projet vide ? Le projet actuel sera remplacé.', () => { state = normalize({ nom: 'Nouveau projet', params: { methodeAlim: 'F', vitesse: 2.4 }, etages: [{ id: 'E1', nom: 'Rez-de-chaussée', niveau: 0 }] }); save(); render(); }, 'Créer') }, 'Nouveau projet'))));
+  }
+  // Dans un cadre intégré (Artifact), téléchargements, impression et confirm() sont bloqués :
+  // on affiche alors le contenu à copier et un rapport à l'écran.
+  const EMBEDDED = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+  function overlay(content, onClose) {
+    const close = () => { el.remove(); document.removeEventListener('keydown', esc); if (onClose) onClose(); };
+    const esc = e => { if (e.key === 'Escape') close(); };
+    const el = h('div', { class: 'overlay', onclick: e => { if (e.target === el) close(); } }, h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true' }, content(close)));
+    document.addEventListener('keydown', esc);
+    document.body.append(el);
+    const f = el.querySelector('button.primary, button'); if (f) f.focus();
+    return close;
+  }
+  function ask(msg, onYes, yesLabel) {
+    overlay(close => [h('p', { class: 'dialog-msg' }, msg), h('div', { class: 'row dialog-actions' },
+      onYes ? h('button', { class: 'btn', onclick: close }, 'Annuler') : null,
+      h('button', { class: 'btn ' + (onYes ? 'primary' : ''), onclick: () => { close(); if (onYes) onYes(); } }, yesLabel || 'OK'))]);
+  }
+  function showText(title, name, content, type) {
+    if (!EMBEDDED) { download(name, content, type); return; }
+    overlay(close => {
+      const ta = h('textarea', { class: 'export-text', readonly: true, id: 'export-text' }, content.replace(/^\uFEFF/, ''));
+      const status = h('span', { class: 'muted', 'aria-live': 'polite' }, '');
+      return [h('h3', null, title), h('p', { class: 'muted' }, `Copier le contenu et l’enregistrer sous « ${name} ».`), ta,
+        h('div', { class: 'row dialog-actions' }, status, h('span', { class: 'spacer' }),
+          h('button', { class: 'btn', onclick: close }, 'Fermer'),
+          h('button', { class: 'btn primary', onclick: () => {
+            const done = () => { status.textContent = 'Copié.'; };
+            const fallback = () => { ta.focus(); ta.select(); status.textContent = 'Texte sélectionné : Ctrl+C pour copier.'; };
+            try { navigator.clipboard.writeText(ta.value).then(done, fallback); } catch (e) { fallback(); }
+          } }, 'Copier'))];
+    });
   }
   function download(name, content, type) {
     const blob = new Blob([content], { type });
@@ -296,10 +328,10 @@
     document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   }
   function slug() { return (state.nom || 'projet').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'projet'; }
-  function exportJSON() { download(`${slug()}.json`, JSON.stringify(state, null, 2), 'application/json'); }
+  function exportJSON() { showText('Projet JSON', `${slug()}.json`, JSON.stringify(state, null, 2), 'application/json'); }
   function importJSON(e) {
     const f = e.target.files[0]; if (!f) return;
-    f.text().then(t => { try { state = normalize(JSON.parse(t)); save(); render(); } catch (err) { alert('Fichier JSON invalide.'); } });
+    f.text().then(t => { try { state = normalize(JSON.parse(t)); save(); render(); } catch (err) { ask('Ce fichier n’est pas un projet JSON valide. Choisir un fichier exporté par cette application.', null, 'Fermer'); } });
   }
 
   // ---------------------------------------------------------------------------
@@ -341,7 +373,7 @@
         field('Usage par défaut', sel(loc.usage || 'pub', [{ v: 'priv', t: 'Privé' }, { v: 'pub', t: 'Public' }], v => update(() => { loc.usage = v; })), 'Définitions « usage privé / usage public », 1.4.1.2. [A]'),
         h('span', { class: 'muted mono' }, `${fmt(t.fe)} FE · FA ${fmt(t.fa.t)}`),
         h('button', { class: 'icon-btn', title: 'Dupliquer le local', onclick: () => update(s => { const c = JSON.parse(JSON.stringify(loc)); c.id = uid('L'); c.nom += ' (copie)'; c.appareils.forEach(a => { a.id = uid('a'); }); s.locaux.splice(s.locaux.indexOf(loc) + 1, 0, c); }) }, '⧉'),
-        h('button', { class: 'icon-btn', title: 'Supprimer le local', onclick: () => { if (confirm(`Supprimer « ${loc.nom} » ?`)) update(s => { s.locaux = s.locaux.filter(x => x !== loc); s.reseauxEvac.forEach(n => { n.locaux = (n.locaux || []).filter(id => id !== loc.id); }); s.reseauxAlim.forEach(n => { n.locaux = (n.locaux || []).filter(id => id !== loc.id); }); s.ventilations.forEach(n => { n.locaux = (n.locaux || []).filter(id => id !== loc.id); }); }); } }, '×')),
+        h('button', { class: 'icon-btn', title: 'Supprimer le local', onclick: () => ask(`Supprimer « ${loc.nom} » et ses appareils ?`, () => update(s => { s.locaux = s.locaux.filter(x => x !== loc); s.reseauxEvac.forEach(n => { n.locaux = (n.locaux || []).filter(id => id !== loc.id); }); s.reseauxAlim.forEach(n => { n.locaux = (n.locaux || []).filter(id => id !== loc.id); }); s.ventilations.forEach(n => { n.locaux = (n.locaux || []).filter(id => id !== loc.id); }); }), 'Supprimer') }, '×')),
       (loc.appareils || []).length ? h('div', { class: 'table-wrap' }, h('table', { class: 'compact' },
         h('thead', null, h('tr', null, h('th', null, 'Combinaison'), h('th', null, 'Évacuation'), h('th', null, 'Alimentation'), h('th', { class: 'num' }, 'Qté'), h('th', null, 'Usage'), h('th', { class: 'num' }, 'FE'), h('th', { class: 'num' }, 'FA f / c / total'), h('th', null, ''))),
         h('tbody', null, t.lignes.map(li => appRow(loc, li))),
@@ -390,7 +422,7 @@
       h('div', { class: 'card-head' },
         h('input', { class: 'title-input', value: n.nom, onchange: e => update(() => { n.nom = e.target.value; }) }),
         statusBadge(statusOf(r.alertes.concat(r.vent ? r.vent.alertes : []), !!r.dn)),
-        h('button', { class: 'icon-btn', title: 'Supprimer', onclick: () => { if (confirm(`Supprimer « ${n.nom} » ?`)) update(s => { s.reseauxEvac = s.reseauxEvac.filter(x => x !== n); s.reseauxEvac.forEach(x => { x.amont = (x.amont || []).filter(id => id !== n.id); }); }); } }, '×')),
+        h('button', { class: 'icon-btn', title: 'Supprimer', onclick: () => ask(`Supprimer « ${n.nom} » ?`, () => update(s => { s.reseauxEvac = s.reseauxEvac.filter(x => x !== n); s.reseauxEvac.forEach(x => { x.amont = (x.amont || []).filter(id => id !== n.id); }); }), 'Supprimer') }, '×')),
       h('div', { class: 'fields' },
         field('Type', sel(n.type, Object.entries(TYPE_EVAC).map(([v, t]) => ({ v, t })), v => update(() => { n.type = v; if (v !== 'colonne' && !n.pente) n.pente = 50; }))),
         n.type !== 'colonne' || n.deviation ? field('Pente (1:x)', penteInput(n)) : null,
@@ -643,7 +675,7 @@
     row('Pression ajustée (kPa)', dec(R.pression.pAdj), 'Disponible pour pertes (kPa)', dec(R.pression.disponible), 'kPa/m', dec(R.pression.parM));
     row('Tronçon', 'Partie', 'FA froide', 'FA chaude', 'FA total', 'DN', 'mm', 'Capacité (L/s)', 'Débit indicatif (L/s)', 'Justification', 'Alertes');
     R.alim.forEach(r => row(r.tr.nom, PARTIE[r.tr.partie], dec(r.fa.f), dec(r.fa.c), dec(r.fa.t), r.dn || 'hors tableau', E.dnMm(r.dn) || '', dec(r.capacite), dec(r.debit), r.details.map(d => `${d.ref}: ${d.raison}`).join(' | '), r.alertes.map(a => `[${a.niveau}] ${a.msg}`).join(' | ')));
-    download(`${slug()}-calcul.csv`, '﻿' + L.join('\r\n'), 'text/csv;charset=utf-8');
+    showText('Export CSV', `${slug()}-calcul.csv`, '\ufeff' + L.join('\r\n'), 'text/csv;charset=utf-8');
   }
 
   function printReport() {
@@ -651,6 +683,7 @@
     const root = document.getElementById('print-root');
     const tbl = (head, rows) => h('table', null, h('thead', null, h('tr', null, head.map(c => h('th', null, c)))), h('tbody', null, rows.map(r => h('tr', null, r.map(c => h('td', null, c))))));
     root.replaceChildren(
+      EMBEDDED ? h('div', { class: 'report-bar' }, h('strong', null, 'Rapport'), h('span', { class: 'muted' }, 'Ouvrir l’application hors de Claude pour l’imprimer en PDF.'), h('span', { class: 'spacer' }), h('button', { class: 'btn primary', onclick: () => { root.classList.remove('show'); } }, 'Fermer le rapport')) : null,
       h('h1', null, `Calcul de plomberie — ${state.nom || ''}`),
       h('p', null, D.EDITION.titre, ' · ', new Date().toLocaleDateString('fr-CA')),
       h('div', { class: 'warnbox' }, 'Outil de prédimensionnement — la conformité finale doit être validée par un professionnel contre le texte officiel du chapitre III.'),
@@ -665,7 +698,7 @@
       tbl(['Tronçon', 'FA f / c / total', 'DN', 'Débit indicatif', 'Justification'], R.alim.map(r => [r.tr.nom, `${fmt(r.fa.f)} / ${fmt(r.fa.c)} / ${fmt(r.fa.t)}`, r.dn ? `${r.dn} (${E.dnMm(r.dn) || 'n.d.'} mm)` : 'hors tableau', r.debit ? `${fmt(r.debit)} L/s` : '—', r.details.map(d => `${d.ref} — ${d.raison}`).join('; ')])),
       h('h2', null, 'Alertes'),
       h('ul', null, [].concat(...R.evac.map(r => r.alertes.concat(r.vent ? r.vent.alertes : []).filter(a => a.niveau !== 'info').map(a => `${r.net.nom} : ${a.msg} (${a.ref})`)), ...R.vent.map(r => r.alertes.filter(a => a.niveau !== 'info').map(a => `${r.v.nom} : ${a.msg} (${a.ref})`)), ...R.alim.map(r => r.alertes.filter(a => a.niveau !== 'info').map(a => `${r.tr.nom} : ${a.msg} (${a.ref})`)), R.pression.alertes.map(a => `Pression : ${a.msg} (${a.ref})`)).map(t => h('li', null, t))));
-    window.print();
+    if (EMBEDDED) { root.classList.add('show'); window.scrollTo(0, 0); } else window.print();
   }
 
   // ---------------------------------------------------------------------------
